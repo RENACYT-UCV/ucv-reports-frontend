@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard - Visualiza tus Reportes</title>
+    <link rel="stylesheet" href="../../CSS/reportes_ver/reportes_ver.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <div class="logo-section">
+                <div class="logo">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <div class="logo-text">Sistema Reportes</div>
+            </div>
+
+            <div class="nav-menu">
+                <a href="../reporte_enviar/reporte_enviar.html" class="nav-item">
+                    <i class="fas fa-paper-plane"></i>
+                    <span>Enviar Reporte</span>
+                </a>
+                <a href="reportes_ver.html" class="nav-item active">
+                    <i class="fas fa-list-alt"></i>
+                    <span>Artículos Reportados</span>
+                </a>
+                <a href="../reportes_globales/reportes_globales.html" class="nav-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Reportes Globales</span>
+                </a>
+                <a href="#" class="nav-item" id="btn-logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Salir</span>
+                </a>
+            </div>
+        </nav>
+
+        <!-- Overlay for mobile -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <header class="header">
+                <div class="header-content">
+                    <button class="mobile-toggle" onclick="toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1>
+                        <i class="fas fa-eye"></i>
+                        <span>Visualiza tus Reportes</span>
+                    </h1>
+                    <span id="welcome-user" style="font-size:14px; color:#666; margin-left:auto;"></span>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <!-- Help Banner -->
+                <div class="help-banner">
+                    <i class="fas fa-info-circle"></i>
+                    <div class="help-content">
+                        <div class="help-text">
+                            <strong>Ayuda:</strong> Aquí puedes observar y revisar tus reportes enviados. Si no logras visualizarlo actualiza la página.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports Table Container -->
+                <div class="table-container">
+                    <div class="table-header">
+                        <i class="fas fa-table"></i>
+                        <h2>Lista de Reportes</h2>
+                    </div>
+
+                    <p id="loading-msg" style="padding:16px; color:#888;">Cargando reportes...</p>
+                    <p id="error-msg" style="padding:16px; color:red; display:none;"></p>
+
+                    <!-- Desktop Table -->
+                    <div class="desktop-table">
+                        <table class="reports-table">
+                            <thead>
+                                <tr>
+                                    <th><i class="fas fa-calendar"></i>Fecha</th>
+                                    <th><i class="fas fa-map-marker-alt"></i>Lugar del Reporte</th>
+                                    <th><i class="fas fa-file-alt"></i>Descripción</th>
+                                    <th><i class="fas fa-exclamation-circle"></i>Estado</th>
+                                    <th><i class="fas fa-cogs"></i>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-reportes">
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Mobile Cards -->
+                    <div class="mobile-cards" id="mobile-cards">
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de detalle -->
+    <div id="modal-detalle" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; display:none; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:24px; max-width:500px; width:90%; position:relative;">
+            <button onclick="cerrarModal()" style="position:absolute; top:12px; right:12px; background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
+            <h3 style="margin-top:0;"><i class="fas fa-file-alt"></i> Detalle del Reporte</h3>
+            <div id="detalle-contenido" style="line-height:1.8;"></div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8001';
+
+        function getToken() { return localStorage.getItem('access_token'); }
+        function getUserId() { return parseInt(localStorage.getItem('userId')); }
+
+        if (!getToken()) { window.location.href = '../auth/login.html'; }
+
+        const username = localStorage.getItem('username');
+        if (username) document.getElementById('welcome-user').textContent = `Bienvenido, ${username}`;
+
+        document.getElementById('btn-logout').addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.clear();
+            window.location.href = '../auth/login.html';
+        });
+
+        function estadoClass(estado) {
+            if (!estado) return 'status-revision';
+            const e = estado.toLowerCase();
+            if (e === 'aprobado') return 'status-aprobado';
+            if (e === 'desaprobado' || e === 'resuelto') return 'status-aprobado';
+            if (e === 'tomado') return 'status-proceso';
+            return 'status-revision';
+        }
+
+        function renderTabla(reportes) {
+            const tbody = document.getElementById('tabla-reportes');
+            const cards = document.getElementById('mobile-cards');
+            tbody.innerHTML = '';
+            cards.innerHTML = '';
+
+            if (reportes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#888;">No tienes reportes activos.</td></tr>';
+                return;
+            }
+
+            reportes.forEach(h => {
+                const r = h.reporte || {};
+                const lugar = [r.Pabellon, r.Piso, r.Salon].filter(Boolean).join(', ') || '—';
+                const fecha = h.fecha || '—';
+                const desc = r.descripcion || '—';
+                const estado = r.estado || 'Pendiente';
+                const id = h.reporte_id;
+
+                // Desktop row
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="date-cell">${fecha}</td>
+                    <td class="location-cell">${lugar}</td>
+                    <td class="description-cell">${desc}</td>
+                    <td class="status-cell ${estadoClass(estado)}">${estado}</td>
+                    <td class="actions-cell">
+                        <button class="action-btn btn-visualizar" onclick="visualizarReporte(${id})">
+                            <i class="fas fa-eye"></i> Visualizar
+                        </button>
+                    </td>`;
+                tbody.appendChild(tr);
+
+                // Mobile card
+                const card = document.createElement('div');
+                card.className = 'report-card';
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="card-date">${fecha}</div>
+                        <div class="card-status ${estadoClass(estado)}">${estado}</div>
+                    </div>
+                    <div class="card-info">
+                        <div class="info-row">
+                            <div class="info-label"><i class="fas fa-map-marker-alt"></i> Lugar:</div>
+                            <div class="info-value">${lugar}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><i class="fas fa-file-alt"></i> Descripción:</div>
+                            <div class="info-value">${desc}</div>
+                        </div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="action-btn btn-visualizar" onclick="visualizarReporte(${id})">
+                            <i class="fas fa-eye"></i> Visualizar
+                        </button>
+                    </div>`;
+                cards.appendChild(card);
+            });
+        }
+
+        async function visualizarReporte(id) {
+            try {
+                const res = await fetch(`${BASE_URL}/reportes/detalle/${id}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const data = await res.json();
+                const r = data.reporte || data;
+                document.getElementById('detalle-contenido').innerHTML = `
+                    <p><b>Facultad:</b> ${r.r_facultad || r.facultad || '—'}</p>
+                    <p><b>Turno:</b> ${r.r_turno || r.turno || '—'}</p>
+                    <p><b>Fecha:</b> ${r.r_fecha || r.fecha || '—'}</p>
+                    <p><b>Estado:</b> ${r.r_estado || r.estado || '—'}</p>
+                    <p><b>Lugar:</b> ${[r.r_Pabellon || r.Pabellon, r.r_Piso || r.Piso, r.r_Salon || r.Salon].filter(Boolean).join(', ') || '—'}</p>
+                    <p><b>Artículo:</b> ${r.r_Articulos || r.Articulos || '—'}</p>
+                    <p><b>Descripción:</b> ${r.r_descripcion || r.descripcion || '—'}</p>
+                    ${(r.r_Motivo || r.Motivo) ? `<p><b>Motivo:</b> ${r.r_Motivo || r.Motivo}</p>` : ''}
+                    ${(r.r_evidencia || r.evidencia) ? `<p><b>Evidencia:</b> <a href="${r.r_evidencia || r.evidencia}" target="_blank">Ver enlace</a></p>` : ''}
+                `;
+                document.getElementById('modal-detalle').style.display = 'flex';
+            } catch {
+                alert('Error al cargar el detalle del reporte.');
+            }
+        }
+
+        function cerrarModal() {
+            document.getElementById('modal-detalle').style.display = 'none';
+        }
+
+        async function cargarReportes() {
+            const userId = getUserId();
+            if (!userId) {
+                window.location.href = '../auth/login.html';
+                return;
+            }
+            try {
+                const res = await fetch(`${BASE_URL}/historial-reportes/${userId}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                if (!res.ok) throw new Error('Error al obtener reportes');
+                const data = await res.json();
+                document.getElementById('loading-msg').style.display = 'none';
+                renderTabla(data);
+            } catch (err) {
+                document.getElementById('loading-msg').style.display = 'none';
+                const errEl = document.getElementById('error-msg');
+                errEl.textContent = 'Error al cargar reportes: ' + err.message;
+                errEl.style.display = 'block';
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('mobile-visible');
+            overlay.classList.toggle('active');
+            document.body.style.overflow = sidebar.classList.contains('mobile-visible') ? 'hidden' : 'auto';
+        }
+
+        document.addEventListener('click', function(event) {
+            const sidebar = document.getElementById('sidebar');
+            const mobileToggle = document.querySelector('.mobile-toggle');
+            if (window.innerWidth <= 992 && !sidebar.contains(event.target) && mobileToggle && !mobileToggle.contains(event.target)) {
+                sidebar.classList.remove('mobile-visible');
+                document.getElementById('sidebarOverlay').classList.remove('active');
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 992) {
+                document.getElementById('sidebar').classList.remove('mobile-visible');
+                document.getElementById('sidebarOverlay').classList.remove('active');
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        cargarReportes();
+    </script>
+</body>
+</html>

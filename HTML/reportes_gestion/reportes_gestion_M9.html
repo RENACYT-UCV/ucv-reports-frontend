@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestion Reportes</title>
+    <link rel="stylesheet" href="../../CSS/reportes_gestion/reportes_gestion.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="icon" type="image/png" href="../../CSS/auth/images/logo_ucv_modal.png">
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo">
+            <img src="../../CSS/auth/images/logo_ucv.png" alt="logoUcv">
+        </div>
+        <ul>
+            <li class="active"><a href="reportes_gestion_M9.html"><i class="fas fa-chart-bar"></i> Gestion de Reportes</a></li>
+            <li><a href="#" id="btn-logout"><i class="fas fa-sign-out-alt"></i> Salir</a></li>
+        </ul>
+    </div>
+    <div class="main-content">
+        <div class="header">
+            <h1>Gestión de Reportes</h1>
+        </div>
+        <div class="reportes-bar">
+            <div class="bienvenida" id="welcome-user">
+                Bienvenido Administrador
+            </div>
+            <div class="reportes-controls">
+                <input type="text" id="input-buscar" placeholder="Buscar por usuario o lugar..." oninput="filtrarReportes()">
+                <button class="reportes-btn" onclick="abrirModalReportes()">
+                    <img src="../../CSS/auth/images/riskIcon.png" alt="riskIcon">
+                    Reportes
+                </button>
+            </div>
+        </div>
+
+        <p id="loading-msg" style="padding:16px; color:#888;">Cargando reportes...</p>
+        <p id="error-msg" style="padding:16px; color:red; display:none;"></p>
+
+        <!-- Tabla de Gestión de Reportes -->
+        <div class="reportes-table-container">
+            <div class="reportes-box">
+                <table class="reportes-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Lugar del Problema</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-reportes">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Desaprobación de Reporte -->
+    <div id="modalDesaprobar" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="cerrarModalDesaprobar()">&times;</span>
+            <label>¿Estás seguro de que deseas desaprobar este reporte? Ingrese el motivo:</label>
+            <input type="text" id="motivoDesaprobacion" placeholder="Motivo..." />
+            <p id="error-desaprobar" style="color:red; font-size:13px; display:none;"></p>
+            <div class="modal-actions">
+                <button class="btn aceptar" onclick="aceptarDesaprobacion()">Aceptar</button>
+                <button class="btn cancelar" onclick="cerrarModalDesaprobar()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Reportes Desaprobados/Resueltos -->
+    <div id="modalReportes" class="modal">
+        <div class="modal-content modal-reportes">
+            <span class="close" onclick="cerrarModalReportes()">&times;</span>
+
+            <div class="icono-container-modal">
+                <img src="../../CSS/auth/images/logo_ucv_modal.png" class="icono-btn-modal" alt="report_LOGO-ucv">
+            </div>
+
+            <h2 class="text-modal">Reportes Desaprobados / Resueltos</h2>
+            <p id="loading-modal-reportes" style="color:#888; text-align:center;">Cargando...</p>
+            <div class="modal-table-container">
+                <table class="modal-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Lugar del Problema</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-modal-reportes">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Detalle de Reporte -->
+    <div id="modalDetalleReporte" class="modal">
+        <div class="modal-content modal-detalle-reporte">
+            <span class="close" onclick="cerrarModalDetalleReporte()">&times;</span>
+            <h3>Detalles del Reporte</h3>
+            <div class="detalle-info" id="detalle-info-contenido">
+                <p style="color:#888;">Cargando detalles...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8001';
+
+        function getToken() { return localStorage.getItem('access_token'); }
+
+        if (!getToken()) { window.location.href = '../auth/login.html'; }
+
+        const role = localStorage.getItem('role');
+        if (role && role !== 'Administrador' && role !== 'admin') {
+            window.location.href = '../reportes_ver/reportes_ver.html';
+        }
+
+        const username = localStorage.getItem('username');
+        if (username) {
+            document.getElementById('welcome-user').textContent = `Bienvenido, ${username}`;
+        }
+
+        document.getElementById('btn-logout').addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.clear();
+            window.location.href = '../auth/login.html';
+        });
+
+        let todosReportes = [];
+        let reporteIdPendiente = null;
+
+        async function cargarReportes() {
+            try {
+                const res = await fetch(`${BASE_URL}/reportes/todos-con-usuario`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                if (!res.ok) throw new Error('Error al obtener reportes');
+                todosReportes = await res.json();
+                document.getElementById('loading-msg').style.display = 'none';
+                renderTabla(todosReportes);
+            } catch (err) {
+                document.getElementById('loading-msg').style.display = 'none';
+                const errEl = document.getElementById('error-msg');
+                errEl.textContent = 'Error al cargar reportes: ' + err.message;
+                errEl.style.display = 'block';
+            }
+        }
+
+        function renderTabla(reportes) {
+            const tbody = document.getElementById('tabla-reportes');
+            tbody.innerHTML = '';
+
+            const activos = reportes.filter(r => r.estado !== 'Aprobado' && r.estado !== 'Desaprobado' && r.estado !== 'Resuelto');
+
+            if (activos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#888;">No hay reportes pendientes.</td></tr>';
+                return;
+            }
+
+            activos.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${r.usuario || '—'}</td>
+                    <td>${r.lugar_problema || '—'}</td>
+                    <td>${r.fecha || '—'}</td>
+                    <td>${r.estado || '—'}</td>
+                    <td>
+                        <button class="btn aprobar" onclick="aprobarReporte(${r.id_reporte}, this)">✔ Aprobar Reporte</button>
+                        <button class="btn desaprobar" onclick="abrirModalDesaprobar(${r.id_reporte})">
+                            <span class="icon">⛔</span> Desaprobar Reporte
+                        </button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filtrarReportes() {
+            const q = document.getElementById('input-buscar').value.toLowerCase();
+            const filtrados = todosReportes.filter(r =>
+                (r.usuario || '').toLowerCase().includes(q) ||
+                (r.lugar_problema || '').toLowerCase().includes(q)
+            );
+            renderTabla(filtrados);
+        }
+
+        async function aprobarReporte(idReporte, btn) {
+            if (!confirm('¿Confirmas que deseas aprobar este reporte?')) return;
+            btn.disabled = true;
+            btn.textContent = 'Aprobando...';
+            try {
+                const res = await fetch(`${BASE_URL}/reportes/${idReporte}/aprobar`, {
+                    method: 'PATCH',
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                if (!res.ok) throw new Error('Error al aprobar');
+                await cargarReportes();
+            } catch (err) {
+                alert('Error al aprobar el reporte: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = '✔ Aprobar Reporte';
+            }
+        }
+
+        function abrirModalDesaprobar(idReporte) {
+            reporteIdPendiente = idReporte;
+            document.getElementById('motivoDesaprobacion').value = '';
+            document.getElementById('error-desaprobar').style.display = 'none';
+            document.getElementById('modalDesaprobar').style.display = 'block';
+        }
+
+        function cerrarModalDesaprobar() {
+            document.getElementById('modalDesaprobar').style.display = 'none';
+            reporteIdPendiente = null;
+        }
+
+        async function aceptarDesaprobacion() {
+            const motivo = document.getElementById('motivoDesaprobacion').value.trim();
+            const errEl = document.getElementById('error-desaprobar');
+            if (!motivo) {
+                errEl.textContent = 'Por favor, ingrese el motivo.';
+                errEl.style.display = 'block';
+                return;
+            }
+            errEl.style.display = 'none';
+            const btn = document.querySelector('#modalDesaprobar .btn.aceptar');
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+            try {
+                const res = await fetch(`${BASE_URL}/reportes/${reporteIdPendiente}/desaprobar`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}`
+                    },
+                    body: JSON.stringify({ motivo })
+                });
+                if (!res.ok) throw new Error('Error al desaprobar');
+                cerrarModalDesaprobar();
+                await cargarReportes();
+            } catch (err) {
+                errEl.textContent = 'Error: ' + err.message;
+                errEl.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Aceptar';
+            }
+        }
+
+        async function abrirModalReportes() {
+            document.getElementById('modalReportes').style.display = 'block';
+            document.getElementById('loading-modal-reportes').style.display = 'block';
+            document.getElementById('tabla-modal-reportes').innerHTML = '';
+            try {
+                const res = await fetch(`${BASE_URL}/historial-reportes/resueltos-desaprobados`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const data = await res.json();
+                document.getElementById('loading-modal-reportes').style.display = 'none';
+                const tbody = document.getElementById('tabla-modal-reportes');
+                if (!data.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#888;">Sin registros.</td></tr>';
+                    return;
+                }
+                data.forEach(r => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${r.u_usuario || r.usuario || '—'}</td>
+                        <td>${r.lugar_problema || '—'}</td>
+                        <td>${r.r_fecha || r.fecha || '—'}</td>
+                        <td>${r.r_estado || r.estado || '—'}</td>
+                        <td><button class="btn observar" onclick="abrirModalDetalleDesdeReportes(${r.r_id_reporte || r.id_reporte})">Observar</button></td>`;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                document.getElementById('loading-modal-reportes').style.display = 'none';
+                document.getElementById('tabla-modal-reportes').innerHTML =
+                    `<tr><td colspan="5" style="color:red;">Error al cargar: ${err.message}</td></tr>`;
+            }
+        }
+
+        function cerrarModalReportes() {
+            document.getElementById('modalReportes').style.display = 'none';
+        }
+
+        async function abrirModalDetalleDesdeReportes(idReporte) {
+            document.getElementById('modalReportes').style.display = 'none';
+            document.getElementById('modalDetalleReporte').style.display = 'block';
+            document.getElementById('detalle-info-contenido').innerHTML = '<p style="color:#888;">Cargando detalles...</p>';
+            try {
+                const res = await fetch(`${BASE_URL}/reportes/detalle/${idReporte}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const data = await res.json();
+                const r = data.reporte || data;
+                const evidencia = r.r_evidencia || r.evidencia;
+                document.getElementById('detalle-info-contenido').innerHTML = `
+                    <div><b>Facultad:</b> ${r.r_facultad || r.facultad || '—'}</div>
+                    <div><b>Turno:</b> ${r.r_turno || r.turno || '—'}</div>
+                    <div><b>Fecha:</b> ${r.r_fecha || r.fecha || '—'}</div>
+                    <div><b>Estado:</b> ${r.r_estado || r.estado || '—'}</div>
+                    <div><b>Artículos:</b> ${r.r_Articulos || r.Articulos || '—'}</div>
+                    <div><b>Motivo:</b> ${r.r_Motivo || r.Motivo || '—'}</div>
+                    <hr>
+                    <div><b>Lugar del Problema:</b> ${[r.r_Pabellon || r.Pabellon, r.r_Piso || r.Piso, r.r_Salon || r.Salon].filter(Boolean).join(', ') || '—'}</div>
+                    <div><b>Descripción del Problema:</b><br>${r.r_descripcion || r.descripcion || '—'}</div>
+                    ${evidencia ? `<hr><div><b>Evidencia:</b></div>
+                    <img src="${evidencia}" alt="Evidencia" style="max-width:100%;margin-top:10px;border-radius:8px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                    <a href="${evidencia}" target="_blank" style="display:none; margin-top:8px;">Ver evidencia</a>` : ''}
+                `;
+            } catch (err) {
+                document.getElementById('detalle-info-contenido').innerHTML = `<p style="color:red;">Error al cargar detalles: ${err.message}</p>`;
+            }
+        }
+
+        function cerrarModalDetalleReporte() {
+            document.getElementById('modalDetalleReporte').style.display = 'none';
+            document.getElementById('modalReportes').style.display = 'block';
+        }
+
+        window.onclick = function(event) {
+            ['modalDesaprobar', 'modalReportes', 'modalDetalleReporte'].forEach(id => {
+                const modal = document.getElementById(id);
+                if (event.target === modal) modal.style.display = 'none';
+            });
+        };
+
+        cargarReportes();
+    </script>
+</body>
+</html>

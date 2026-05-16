@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes Globales</title>
+    <link rel="stylesheet" href="../../CSS/reportes_globales/reportes_globales.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="header">
+        <h1>
+            <i class="fas fa-chart-line"></i>
+            Reportes Globales
+        </h1>
+        <nav style="margin-left:auto; display:flex; gap:16px; align-items:center;">
+            <a href="../reporte_enviar/reporte_enviar.html" style="color:#fff; text-decoration:none; font-size:14px;">
+                <i class="fas fa-paper-plane"></i> Enviar Reporte
+            </a>
+            <a href="../reportes_ver/reportes_ver.html" style="color:#fff; text-decoration:none; font-size:14px;">
+                <i class="fas fa-list-alt"></i> Mis Reportes
+            </a>
+            <a href="#" id="btn-logout" style="color:#fff; text-decoration:none; font-size:14px;">
+                <i class="fas fa-sign-out-alt"></i> Salir
+            </a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="subtitle">
+            <i class="fas fa-info-circle fa-icon"></i>
+            <div>
+                <strong>Sistema de Gestión de Reportes</strong><br>
+                Aquí se muestran los reportes aprobados. Haz clic en "Visualizar" para ver la información detallada.
+            </div>
+        </div>
+
+        <p id="loading-msg" style="padding:16px; color:#888; text-align:center;">Cargando reportes aprobados...</p>
+        <p id="error-msg" style="padding:16px; color:red; text-align:center; display:none;"></p>
+        <p id="empty-msg" style="padding:16px; color:#888; text-align:center; display:none;">No hay reportes aprobados aún.</p>
+
+        <div class="reports-grid" id="reports-grid">
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-file-alt"></i>
+                    Detalles del Reporte
+                </h2>
+                <button class="close-btn" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="modal-info">
+                    <div class="info-item">
+                        <span class="info-label"><i class="fas fa-university"></i> Facultad:</span>
+                        <span class="info-value" id="modalFacultad">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label"><i class="fas fa-clock"></i> Turno:</span>
+                        <span class="info-value" id="modalTurno">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label"><i class="fas fa-calendar-check"></i> Fecha:</span>
+                        <span class="info-value" id="modalFecha">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label"><i class="fas fa-check-circle"></i> Estado:</span>
+                        <span class="info-value" id="modalEstado">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label"><i class="fas fa-tools"></i> Artículo:</span>
+                        <span class="info-value" id="modalArticulos">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label"><i class="fas fa-exclamation-triangle"></i> Lugar del Problema:</span>
+                        <span class="info-value" id="modalLugar">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label"><i class="fas fa-align-left"></i> Descripción:</span>
+                        <span class="info-value" id="modalDescripcion">—</span>
+                    </div>
+                </div>
+                <div class="evidence-section" id="evidenceSection" style="display:none;">
+                    <h3 class="evidence-title">
+                        <i class="fas fa-camera"></i>
+                        Evidencia:
+                    </h3>
+                    <a id="modalEvidenciaLink" href="#" target="_blank" style="display:block; margin-top:8px;">
+                        <img id="modalEvidencia" src="" alt="Evidencia del problema" class="evidence-image" style="max-width:100%;">
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8001';
+
+        function getToken() { return localStorage.getItem('access_token'); }
+
+        if (!getToken()) { window.location.href = '../auth/login.html'; }
+
+        document.getElementById('btn-logout').addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.clear();
+            window.location.href = '../auth/login.html';
+        });
+
+        function articuloIcon(articulo) {
+            if (!articulo) return 'fas fa-box';
+            const a = articulo.toLowerCase();
+            if (a.includes('hardware') || a.includes('tecnol')) return 'fas fa-desktop';
+            if (a.includes('escritorio')) return 'fas fa-chair';
+            return 'fas fa-box';
+        }
+
+        function renderCards(reportes) {
+            const grid = document.getElementById('reports-grid');
+            grid.innerHTML = '';
+
+            if (reportes.length === 0) {
+                document.getElementById('empty-msg').style.display = 'block';
+                return;
+            }
+
+            reportes.forEach(r => {
+                const idReporte = r.r_id_reporte || r.id_reporte;
+                const fecha = r.r_fecha || r.fecha || '—';
+                const lugar = r.lugar_problema || '—';
+                const articulo = r.r_Articulos || r.Articulos || '—';
+
+                const card = document.createElement('div');
+                card.className = 'report-card';
+                card.innerHTML = `
+                    <div class="card-content">
+                        <div class="card-date">
+                            <i class="fas fa-calendar-alt"></i>
+                            Fecha: ${fecha}
+                        </div>
+                        <div class="card-location">
+                            <i class="fas fa-map-marker-alt"></i>
+                            Lugar: ${lugar}
+                        </div>
+                        <div class="card-classroom">
+                            <i class="${articuloIcon(articulo)}"></i>
+                            Artículo: ${articulo}
+                        </div>
+                        <button class="visualizar-btn" onclick="openModal(${idReporte})">
+                            <i class="fas fa-eye"></i>
+                            Visualizar
+                        </button>
+                    </div>`;
+                grid.appendChild(card);
+            });
+        }
+
+        async function openModal(idReporte) {
+            document.getElementById('modalFacultad').textContent = '—';
+            document.getElementById('modalTurno').textContent = '—';
+            document.getElementById('modalFecha').textContent = '—';
+            document.getElementById('modalEstado').textContent = '—';
+            document.getElementById('modalArticulos').textContent = '—';
+            document.getElementById('modalLugar').textContent = '—';
+            document.getElementById('modalDescripcion').textContent = '—';
+            document.getElementById('evidenceSection').style.display = 'none';
+            document.getElementById('modalOverlay').classList.add('active');
+            document.body.style.overflow = 'hidden';
+
+            try {
+                const res = await fetch(`${BASE_URL}/reportes/detalle/${idReporte}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const data = await res.json();
+                const r = data.reporte || data;
+
+                document.getElementById('modalFacultad').textContent = r.r_facultad || r.facultad || '—';
+                document.getElementById('modalTurno').textContent = r.r_turno || r.turno || '—';
+                document.getElementById('modalFecha').textContent = r.r_fecha || r.fecha || '—';
+                document.getElementById('modalEstado').textContent = r.r_estado || r.estado || '—';
+                document.getElementById('modalArticulos').textContent = r.r_Articulos || r.Articulos || '—';
+                const lugar = [r.r_Pabellon || r.Pabellon, r.r_Piso || r.Piso, r.r_Salon || r.Salon].filter(Boolean).join(', ') || '—';
+                document.getElementById('modalLugar').textContent = lugar;
+                document.getElementById('modalDescripcion').textContent = r.r_descripcion || r.descripcion || '—';
+
+                const evidencia = r.r_evidencia || r.evidencia;
+                if (evidencia) {
+                    document.getElementById('modalEvidenciaLink').href = evidencia;
+                    document.getElementById('modalEvidencia').src = evidencia;
+                    document.getElementById('evidenceSection').style.display = 'block';
+                }
+            } catch {
+                // keep defaults shown
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') closeModal();
+        });
+
+        async function cargarReportesAprobados() {
+            try {
+                const res = await fetch(`${BASE_URL}/reportes/aprobados`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                if (!res.ok) throw new Error('Error al obtener reportes');
+                const data = await res.json();
+                document.getElementById('loading-msg').style.display = 'none';
+                renderCards(data);
+            } catch (err) {
+                document.getElementById('loading-msg').style.display = 'none';
+                const errEl = document.getElementById('error-msg');
+                errEl.textContent = 'Error al cargar reportes: ' + err.message;
+                errEl.style.display = 'block';
+            }
+        }
+
+        cargarReportesAprobados();
+    </script>
+</body>
+</html>
