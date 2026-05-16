@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registrar Reporte</title>
-  <link rel="stylesheet" href="../../css/reporte_enviar/reporte_enviar.css">
+  <title>Enviar Reporte</title>
+  <link rel="stylesheet" href="../../CSS/reporte_enviar/reporte_enviar.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
   <div class="container">
@@ -15,9 +16,9 @@
       </div>
       <nav class="menu">
         <a href="#" class="active">Enviar Reporte</a>
-        <a href="#">Artículos Reportados</a>
-        <a href="#">Historial</a>
-        <a href="#">Exit</a>
+        <a href="../reportes_ver/reportes_ver.html">Artículos Reportados</a>
+        <a href="../reportes_globales/reportes_globales.html">Reportes Globales</a>
+        <a href="#" id="btn-logout">Salir</a>
       </nav>
     </aside>
 
@@ -25,73 +26,257 @@
     <main class="main">
       <header class="header">
         <h1>Envía tu Reporte</h1>
+        <span id="welcome-user"></span>
       </header>
       <section class="form-section">
         <h2>Registrar Reporte</h2>
-        <form>
-  <label>Facultad:
-    <select>
-      <option>Seleccione una facultad</option>
-      <option>Facultad de Medicina</option>
-      <option>Facultad de Ingeniería</option>
-      <option>Facultad de Abogacía</option>
-      <option>Facultad de Arquitectura</option>
-    </select>
-  </label>
-  <label>Turno:
-    <select>
-      <option>Seleccione un turno</option>
-      <option>Mañana</option>
-      <option>Noche</option>
-    </select>
-  </label>
-  <label>Pabellón:
-    <select>
-      <option>Seleccione un pabellón</option>
-      <option>A</option>
-      <option>B</option>
-      <option>C</option>
-      <option>D</option>
-      <option>E</option>
-    </select>
-  </label>
-  <label>Piso:
-    <select>
-      <option>Seleccione un piso</option>
-      <option>1</option>
-      <option>2</option>
-      <option>3</option>
-      <option>4</option>
-      <option>5</option>
-      <option>6</option>
-      <option>7</option>
-      <option>8</option>
-      <option>9</option>
-      <option>10</option>
-      <option>11</option>
-      <option>12</option>
-    </select>
-  </label>
-  <label>Aula:
-    <select>
-      <option>Seleccione un aula</option>
-      <option>100</option>
-      <option>102</option>
-    </select>
-  </label>
-  <label>Artículo:
-    <select>
-      <option>Seleccione un artículo</option>
-      <option>Proyector</option>
-      <option>Pizarra</option>
-      <option>Silla</option>
-      <option>Computadora</option>
-      <option>Otro</option>
-    </select>
-  </label>
-</form>
+        <form id="reporteForm">
+          <label>Facultad:
+            <select id="facultad" required>
+              <option value="">Seleccione una facultad</option>
+              <option value="Facultad de Medicina">Facultad de Medicina</option>
+              <option value="Facultad de Ingeniería">Facultad de Ingeniería</option>
+              <option value="Facultad de Abogacía">Facultad de Abogacía</option>
+              <option value="Facultad de Arquitectura">Facultad de Arquitectura</option>
+            </select>
+          </label>
+
+          <label>Turno:
+            <select id="turno" required>
+              <option value="">Seleccione un turno</option>
+              <option value="Mañana">Mañana</option>
+              <option value="Tarde">Tarde</option>
+              <option value="Noche">Noche</option>
+            </select>
+          </label>
+
+          <label>Pabellón:
+            <select id="pabellon" required>
+              <option value="">Cargando pabellones...</option>
+            </select>
+          </label>
+
+          <label>Piso:
+            <select id="piso" required>
+              <option value="">Seleccione un pabellón primero</option>
+            </select>
+          </label>
+
+          <label>Aula / Salón:
+            <select id="salon" required>
+              <option value="">Seleccione un piso primero</option>
+            </select>
+          </label>
+
+          <label>Artículo afectado:
+            <select id="articulo" required>
+              <option value="">Seleccione un artículo</option>
+              <option value="Hardware">Hardware</option>
+              <option value="Tecnológicos">Tecnológicos</option>
+              <option value="Escritorios">Escritorios</option>
+              <option value="Otros">Otros</option>
+            </select>
+          </label>
+
+          <label>Descripción del problema:
+            <textarea id="descripcion" placeholder="Describe el problema con detalle..." rows="4" required></textarea>
+          </label>
+
+          <label>Evidencia (URL de imagen o Google Drive):
+            <input type="text" id="evidencia" placeholder="https://..." />
+          </label>
+
+          <p id="error-msg" style="color:red; font-size:13px; display:none;"></p>
+          <p id="success-msg" style="color:green; font-size:13px; display:none;"></p>
+
+          <button type="submit" id="btn-enviar">
+            <i class="fas fa-paper-plane"></i> Enviar Reporte
+          </button>
+        </form>
       </section>
     </main>
   </div>
+
+  <script>
+    const BASE_URL = 'http://localhost:8001';
+
+    function getToken() {
+      return localStorage.getItem('access_token');
+    }
+
+    function getUserId() {
+      return localStorage.getItem('userId');
+    }
+
+    // Verificar autenticación
+    if (!getToken()) {
+      window.location.href = '../auth/login.html';
+    }
+
+    const username = localStorage.getItem('username');
+    if (username) {
+      document.getElementById('welcome-user').textContent = `Bienvenido, ${username}`;
+    }
+
+    // Logout
+    document.getElementById('btn-logout').addEventListener('click', function (e) {
+      e.preventDefault();
+      localStorage.clear();
+      window.location.href = '../auth/login.html';
+    });
+
+    // Cargar pabellones
+    async function cargarPabellones() {
+      try {
+        const res = await fetch(`${BASE_URL}/pabellon`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const data = await res.json();
+        const select = document.getElementById('pabellon');
+        select.innerHTML = '<option value="">Seleccione un pabellón</option>';
+        data.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.nombre || p.id_pabellon;
+          opt.dataset.id = p.id_pabellon;
+          opt.textContent = p.nombre;
+          select.appendChild(opt);
+        });
+      } catch {
+        document.getElementById('pabellon').innerHTML = '<option value="">Error al cargar pabellones</option>';
+      }
+    }
+
+    // Cargar pisos según pabellón
+    document.getElementById('pabellon').addEventListener('change', async function () {
+      const selectedOpt = this.options[this.selectedIndex];
+      const idPabellon = selectedOpt.dataset.id;
+      const pisoSelect = document.getElementById('piso');
+      const salonSelect = document.getElementById('salon');
+
+      pisoSelect.innerHTML = '<option value="">Seleccione un piso</option>';
+      salonSelect.innerHTML = '<option value="">Seleccione un piso primero</option>';
+
+      if (!idPabellon) return;
+
+      try {
+        const res = await fetch(`${BASE_URL}/piso/byPabellon/${idPabellon}`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const data = await res.json();
+        data.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.nombre || p.id_piso;
+          opt.dataset.id = p.id_piso;
+          opt.textContent = p.nombre || `Piso ${p.id_piso}`;
+          pisoSelect.appendChild(opt);
+        });
+      } catch {
+        pisoSelect.innerHTML = '<option value="">Error al cargar pisos</option>';
+      }
+    });
+
+    // Cargar salones según piso
+    document.getElementById('piso').addEventListener('change', async function () {
+      const selectedOpt = this.options[this.selectedIndex];
+      const idPiso = selectedOpt.dataset.id;
+      const salonSelect = document.getElementById('salon');
+
+      salonSelect.innerHTML = '<option value="">Seleccione un salón</option>';
+
+      if (!idPiso) return;
+
+      try {
+        const res = await fetch(`${BASE_URL}/salon/piso/${idPiso}`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const data = await res.json();
+        data.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.nombre || s.id_salon;
+          opt.textContent = s.nombre || `Salón ${s.id_salon}`;
+          salonSelect.appendChild(opt);
+        });
+      } catch {
+        salonSelect.innerHTML = '<option value="">Error al cargar salones</option>';
+      }
+    });
+
+    // Enviar reporte
+    document.getElementById('reporteForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const facultad = document.getElementById('facultad').value;
+      const turno = document.getElementById('turno').value;
+      const Pabellon = document.getElementById('pabellon').value;
+      const Piso = document.getElementById('piso').value;
+      const Salon = document.getElementById('salon').value;
+      const Articulos = document.getElementById('articulo').value;
+      const descripcion = document.getElementById('descripcion').value.trim();
+      const evidencia = document.getElementById('evidencia').value.trim();
+
+      const errorMsg = document.getElementById('error-msg');
+      const successMsg = document.getElementById('success-msg');
+      const btn = document.getElementById('btn-enviar');
+
+      errorMsg.style.display = 'none';
+      successMsg.style.display = 'none';
+
+      if (!facultad || !turno || !Pabellon || !Piso || !Salon || !Articulos || !descripcion) {
+        errorMsg.textContent = 'Por favor completa todos los campos obligatorios.';
+        errorMsg.style.display = 'block';
+        return;
+      }
+
+      btn.textContent = 'Enviando...';
+      btn.disabled = true;
+
+      const fecha = new Date().toISOString().split('T')[0];
+      const usuarioId = parseInt(getUserId());
+
+      try {
+        // Crear el reporte
+        const resReporte = await fetch(`${BASE_URL}/reportes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getToken()}`
+          },
+          body: JSON.stringify({ facultad, turno, Pabellon, Piso, Salon, Articulos, descripcion, evidencia, fecha, usuarioId })
+        });
+
+        const reporte = await resReporte.json();
+
+        if (!resReporte.ok) {
+          throw new Error(reporte.message || 'Error al crear el reporte');
+        }
+
+        // Registrar en historial
+        await fetch(`${BASE_URL}/historial-reportes/add`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getToken()}`
+          },
+          body: JSON.stringify({ usuario_id: usuarioId, reporte_id: reporte.id_reporte })
+        });
+
+        successMsg.textContent = '¡Reporte enviado exitosamente! Serás redirigido...';
+        successMsg.style.display = 'block';
+        document.getElementById('reporteForm').reset();
+
+        setTimeout(() => {
+          window.location.href = '../reportes_ver/reportes_ver.html';
+        }, 2000);
+      } catch (err) {
+        errorMsg.textContent = err.message;
+        errorMsg.style.display = 'block';
+      } finally {
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Reporte';
+        btn.disabled = false;
+      }
+    });
+
+    cargarPabellones();
+  </script>
 </body>
 </html>

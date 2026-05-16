@@ -9,7 +9,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 </head>
-<!-- ...código existente... -->
 
 <body>
   <div class="login-anim-wrapper">
@@ -29,10 +28,10 @@
       <div class="login-panel-right">
         <p class="subtitle">Iniciar Sesión</p>
         <h1 class="title">Cesar Vallejo<br />Logistics</h1>
-        <form class="login-form">
+        <form class="login-form" id="loginForm">
           <div class="input-icon">
             <i class="fa fa-user"></i>
-            <input type="text" placeholder="Ingresa tu usuario" />
+            <input type="text" id="usuario-input" placeholder="Ingresa tu usuario" required />
           </div>
           <div style="position: relative; width: 100%;">
             <i class="fa fa-lock"
@@ -41,13 +40,11 @@
               style="width: 100%; padding-left: 38px; padding-right: 38px; box-sizing: border-box;" />
             <span class="toggle-password" id="togglePassword"
               style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;">
-              <!-- Ojo cerrado (por defecto) -->
               <svg id="eyeClosed" xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none"
                 viewBox="0 0 24 24">
                 <path stroke="#888" stroke-width="2"
                   d="M3 3l18 18M10.7 10.7a2 2 0 102.6 2.6m-6.3-6.3A9.77 9.77 0 002 12s3.6 7 10 7a9.77 9.77 0 005.3-1.5m-2.1-2.1A4 4 0 0012 8a4 4 0 00-4 4c0 .7.2 1.4.5 2" />
               </svg>
-              <!-- Ojo abierto (oculto al inicio) -->
               <svg id="eyeOpen" xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none"
                 viewBox="0 0 24 24" style="display:none;">
                 <path stroke="#888" stroke-width="2"
@@ -55,9 +52,8 @@
               </svg>
             </span>
           </div>
-
-
-          <button type="submit" class="btn-login">Iniciar sesión</button>
+          <p id="error-msg" style="color:red; font-size:13px; display:none; margin-top:6px;"></p>
+          <button type="submit" class="btn-login" id="btn-login">Iniciar sesión</button>
         </form>
         <div class="help-links">
           <a href="recuperacion_cuenta.html">¿Olvidaste tu contraseña?</a>
@@ -68,8 +64,10 @@
     </div>
   </div>
 
-  <!-- ...código existente... -->
   <script>
+    const BASE_URL = 'http://localhost:8001';
+
+    // Toggle contraseña
     const passwordInput = document.getElementById('password-input');
     const togglePassword = document.getElementById('togglePassword');
     const eyeOpen = document.getElementById('eyeOpen');
@@ -81,14 +79,68 @@
       eyeOpen.style.display = isPassword ? 'inline' : 'none';
       eyeClosed.style.display = isPassword ? 'none' : 'inline';
     });
+
+    // Función para decodificar el payload del JWT
+    function decodeJwtPayload(token) {
+      try {
+        const base64Payload = token.split('.')[1];
+        const payload = JSON.parse(atob(base64Payload));
+        return payload;
+      } catch {
+        return null;
+      }
+    }
+
+    // Submit login
+    document.getElementById('loginForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const usuario = document.getElementById('usuario-input').value.trim();
+      const contraseña = document.getElementById('password-input').value;
+      const errorMsg = document.getElementById('error-msg');
+      const btn = document.getElementById('btn-login');
+
+      errorMsg.style.display = 'none';
+      btn.textContent = 'Iniciando...';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`${BASE_URL}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usuario, contraseña })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Credenciales inválidas');
+        }
+
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('role', data.role);
+
+        const payload = decodeJwtPayload(data.access_token);
+        if (payload) {
+          localStorage.setItem('userId', payload.sub);
+          localStorage.setItem('username', payload.username);
+        }
+
+        // Redirigir según el rol
+        if (data.role === 'Administrador' || data.role === 'admin') {
+          window.location.href = '../reportes_gestion/reportes_gestion_M9.html';
+        } else {
+          window.location.href = '../reportes_ver/reportes_ver.html';
+        }
+      } catch (err) {
+        errorMsg.textContent = err.message;
+        errorMsg.style.display = 'block';
+      } finally {
+        btn.textContent = 'Iniciar sesión';
+        btn.disabled = false;
+      }
+    });
   </script>
-  <!-- ...código existente... -->
-
-
-
-
-
 </body>
-<!-- ...código existente... -->
 
 </html>

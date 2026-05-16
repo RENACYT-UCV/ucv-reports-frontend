@@ -15,34 +15,143 @@
       <img src="../../CSS/auth/images/logo.png" alt="Logo" class="logo" />
       <h1>Recuperación de Cuenta</h1>
       <p class="subtitle">
-        A continuación ingresa los datos que te solicitamos para comprobar que eres el dueño auténtico de la
-        cuenta
+        Ingresa tus datos para verificar que eres el dueño auténtico de la cuenta y restablecer tu contraseña.
       </p>
-      <form>
-        <!-- ...código existente... -->
-        <form>
+
+      <!-- Paso 1: verificar identidad -->
+      <div id="step-1">
+        <form id="verifyForm">
           <div class="input-icon">
             <i class="fa fa-user"></i>
-            <input type="text" placeholder="Usuario" required />
+            <input type="text" id="rec-usuario" placeholder="Usuario" required />
           </div>
           <div class="input-icon">
             <i class="fa fa-id-card"></i>
-            <input type="text" placeholder="Apellido Paterno" required />
+            <input type="text" id="rec-apellido_paterno" placeholder="Apellido Paterno" required />
           </div>
           <div class="input-icon">
             <i class="fa fa-id-card"></i>
-            <input type="text" placeholder="Apellido Materno" required />
+            <input type="text" id="rec-apellido_materno" placeholder="Apellido Materno" required />
           </div>
           <div class="input-icon">
             <i class="fa fa-user-tag"></i>
-            <input type="text" placeholder="Nombre" required />
+            <input type="text" id="rec-nombre" placeholder="Nombre" required />
           </div>
-          <button class="btn primary" type="button"
-            onclick="window.location.href='recuperacion.html'">Continuar</button>
+          <p id="error-verify" style="color:red; font-size:13px; display:none;"></p>
+          <button class="btn primary" type="submit" id="btn-verify">Verificar</button>
           <button class="btn secondary" type="button" onclick="window.location.href='login.html'">Volver</button>
         </form>
+      </div>
+
+      <!-- Paso 2: cambiar contraseña -->
+      <div id="step-2" style="display:none;">
+        <form id="changePassForm">
+          <div class="input-icon">
+            <i class="fa fa-lock"></i>
+            <input type="password" id="new-pass" placeholder="Nueva Contraseña" required />
+          </div>
+          <div class="input-icon">
+            <i class="fa fa-lock"></i>
+            <input type="password" id="confirm-pass" placeholder="Confirmar Contraseña" required />
+          </div>
+          <p id="error-change" style="color:red; font-size:13px; display:none;"></p>
+          <p id="success-change" style="color:green; font-size:13px; display:none;"></p>
+          <button class="btn primary" type="submit" id="btn-change">Cambiar Contraseña</button>
+        </form>
+      </div>
     </div>
   </div>
+
+  <script>
+    const BASE_URL = 'http://localhost:8001';
+    let userId = null;
+
+    document.getElementById('verifyForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const usuario = document.getElementById('rec-usuario').value.trim();
+      const nombre = document.getElementById('rec-nombre').value.trim();
+      const apellido_paterno = document.getElementById('rec-apellido_paterno').value.trim();
+      const apellido_materno = document.getElementById('rec-apellido_materno').value.trim();
+      const errorEl = document.getElementById('error-verify');
+      const btn = document.getElementById('btn-verify');
+
+      errorEl.style.display = 'none';
+      btn.textContent = 'Verificando...';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`${BASE_URL}/auth/verificar-datos-recuperacion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usuario, nombre, apellido_paterno, apellido_materno })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          userId = data.userId;
+          document.getElementById('step-1').style.display = 'none';
+          document.getElementById('step-2').style.display = 'block';
+        } else {
+          errorEl.textContent = 'Los datos ingresados no coinciden con ninguna cuenta.';
+          errorEl.style.display = 'block';
+        }
+      } catch (err) {
+        errorEl.textContent = 'Error de conexión. Intenta nuevamente.';
+        errorEl.style.display = 'block';
+      } finally {
+        btn.textContent = 'Verificar';
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('changePassForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const newPass = document.getElementById('new-pass').value;
+      const confirmPass = document.getElementById('confirm-pass').value;
+      const errorEl = document.getElementById('error-change');
+      const successEl = document.getElementById('success-change');
+      const btn = document.getElementById('btn-change');
+
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      if (newPass !== confirmPass) {
+        errorEl.textContent = 'Las contraseñas no coinciden.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      btn.textContent = 'Cambiando...';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`${BASE_URL}/auth/change-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, newPassword: newPass })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          successEl.textContent = 'Contraseña cambiada exitosamente. Redirigiendo...';
+          successEl.style.display = 'block';
+          setTimeout(() => { window.location.href = 'login.html'; }, 2000);
+        } else {
+          throw new Error(data.message || 'Error al cambiar la contraseña');
+        }
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      } finally {
+        btn.textContent = 'Cambiar Contraseña';
+        btn.disabled = false;
+      }
+    });
+  </script>
 </body>
 
 </html>
